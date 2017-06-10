@@ -91,6 +91,9 @@ void main_task(intptr_t unused)
     balance_init(); /* 倒立振子API初期化 */
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
+    
+    /* スタート通知後、通常のライントレースに移行するように設定 */
+    main_status = STAT_NORMAL; 
 
     /**
     * Main loop for the self-balance control algorithm
