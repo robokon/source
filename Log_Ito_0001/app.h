@@ -76,6 +76,14 @@ extern "C" {
 #define STACK_SIZE      4096        /* タスクのスタックサイズ */
 #endif /* STACK_SIZE */
 
+/* ON OFF 定義 */
+#define TASK_ON         1
+#define TASK_OFF        0
+
+/* Task定義 */
+#define LOG_TASK        TASK_ON
+
+
 /*
  *  関数のプロトタイプ宣言
  */
@@ -87,7 +95,12 @@ extern void line_trace_task(intptr_t exinf);
 extern void stair_task(intptr_t exinf);
 extern void garage_task(intptr_t exinf);
 extern void look_up_gate_task(intptr_t exinf);
-extern void log_task(intptr_t exinf);
+
+#if (LOG_TASK == TASK_ON)
+extern void log_str(void);
+extern void log_commit(void);
+#endif
+
 
 
 #endif /* TOPPERS_MACRO_ONLY */

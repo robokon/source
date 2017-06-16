@@ -65,9 +65,41 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 #define CALIB_FONT_WIDTH (6/*TODO: magic number*/)
 #define CALIB_FONT_HEIGHT (8/*TODO: magic number*/)
 
+
+#if (LOG_TASK == TASK_ON)
+/* Log の最大回数 */
+#define  LOG_MAX   1000
+
+/* Log fileの名前 */
+#define  LOG_FILE_NAME  "Log_yymmdd.csv"
+
+/* Log用の構造体 */
+/*  反射光センサー値
+   ジャイロセンサ角位置
+   ジャイロセンサ角速度 */
+ typedef struct{
+    uint8_t Reflect;
+    int16_t Gyro_angle;
+    int16_t Gyro_rate;  
+}Logger;
+
+/* Log回数の格納変数 */
+int LogNum = 0;
+
+/* Log格納配列 */
+Logger gst_Log_str[LOG_MAX]; /* (1s == 250) */
+#endif
+
 /* 関数プロトタイプ宣言 */
 static int sonar_alert(void);
 static void tail_control(signed int angle);
+
+
+#if (LOG_TASK == TASK_ON)
+void log_str(void);
+void log_commit(void);
+#endif
+
 
 /* メインタスク */
 void main_task(intptr_t unused)
@@ -299,18 +331,53 @@ void bt_task(intptr_t unused)
     }
 }
 
+
+#if (LOG_TASK == TASK_ON)
 //*****************************************************************************
-// 関数名 : log_task
-// 引数 : unused
+// 関数名 : log_str
+// 引数 : なし
 // 返り値 : なし
-// 概要 : 
+// 概要 : グローバル配列 gst_Log_strに現在のセンサー値を格納
 //
 //*****************************************************************************
-void log_task(intptr_t unused)
+void log_str(void)
 {
-    // T.B.D
+	if(LogNum < LOG_MAX)
+	{
+	    gst_Log_str[LogNum].Reflect = ev3_color_sensor_get_reflect(color_sensor);
+	    gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
+	    gst_Log_str[LogNum].Gyro_rate = ev3_gyro_sensor_get_rate(gyro_sensor);
+	    LogNum++;	
+	}
 }
 
+//*****************************************************************************
+// 関数名 : log_commit
+// 引数 : なし
+// 返り値 : なし
+// 概要 : グローバル配列 gst_Log_strに格納されているデータをファイル出力する
+//
+//*****************************************************************************
+void log_commit(void)
+{
+    FILE *fp; /* ファイルポインタ */
+	int  i;   /* インクリメント */
+
+    /* Logファイル作成 */
+	fp=fopen(LOG_FILE_NAME,"a");
+	/* 列タイトル挿入 */
+	fprintf(fp,"反射光センサー, ジャイロ角度, ジャイロセンサ角速度　\n");
+	
+	/* Logの出力 */
+	for(i = 0 ; i < LOG_MAX; i++)
+	{
+		fprintf(fp,"%d,%d,%d\n",gst_Log_str[i].Reflect, gst_Log_str[i].Gyro_angle, gst_Log_str[i].Gyro_rate);
+	}
+	
+	fclose(fp);
+}
+
+#endif
 //*****************************************************************************
 // 関数名 : line_trace_task
 // 引数 : unused
