@@ -13,68 +13,79 @@ signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
 //*****************************************************************************
 void stair_main()
 {
-    int32_t motor_ang_l, motor_ang_r;
-    int gyro, volt;
+	int counter = 0; /* 4msごとのカウンタ値 */
+	int loop = 1;
+	int False = 0;
+	int gyro_str = 0;
+	int stair_num = 0;
+	int limit_count = 25000; /* 100 s */
+	#define GYRO_DIV                200
+	
+	
+    tail_control(TAIL_ANGLE_STAND_UP); /* 倒立制御を削除 尻尾を下す */
+	
+	while(loop)
+	{
+		/* ジャイロ角速度にて階段を検知する */
+		if((counter % 10) == 0)
+		{
+			/* 40 msごとにgyro_strにジャイロ角速度センサー値を格納 (4 ms周期と仮定) */
+			gyro_str = ev3_gyro_sensor_get_rate(gyro_sensor);
+		}
 
-    if (ev3_button_is_pressed(BACK_BUTTON)) return;
+		/* 40 ms前のセンサー値と今のセンサー値の差分が規定値より大きい場合　階段にぶつかったと判断する */
+		if((gyro_str - ev3_gyro_sensor_get_rate(gyro_sensor)) > GYRO_DIV ||
+		(gyro_str - ev3_gyro_sensor_get_rate(gyro_sensor)) < (GYRO_DIV * (-1)) )
+	    {
+			counter++;
+            /* 階段を検知 */
+			stair_num++;
+			
+			/* 階段検知を音で示す */
+			ev3_speaker_set_volume(100); 
+		    ev3_speaker_play_tone(NOTE_C4, 100);
+			
+			/* 10msecウェイト */
+			tslp_tsk(10);
+			
+			/* ちょっとバック */
+			ev3_motor_rotate (left_motor, -360, 30, false );
+			ev3_motor_rotate (right_motor, -360, 30, true );
+			
+			/* 勢いつけて進む */
+			ev3_motor_rotate (left_motor, 3600, 90, false );
+			ev3_motor_rotate (right_motor, 3600, 90, true );
+			
+			/* 40msecウェイト */
+			tslp_tsk(40);
+			
+		    /* 階段上ったことを音で示す */
+		    ev3_speaker_play_tone(NOTE_E6, 100);
+			continue;
+		  
+		    if(stair_num == 2)
+			{
+				/* 二回目の階段検知をしたらloopから抜ける */
+				loop = False;
+			}
+		}
+		else
+		{
+			counter++;
+			/* 階段を検知するまで前進命令 */
+			ev3_motor_rotate (left_motor, 360, 30, false );
+			ev3_motor_rotate (right_motor, 360, 30, false );
+			
+			/* 安全装置 一定時間経過しても2回目の階段検知できなければloopから脱出 */
+			if(counter > limit_count)
+			{
+				loop = False;
+			}
+			continue;
+		}
 
-    tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
-
-    if (sonar_alert() == 1) /* 障害物検知 */
-    {
-        forward = turn = 0; /* 障害物を検知したら停止 */
-    }
-    else
-    {
-        forward = 30; /* 前進命令 */
-        if (ev3_color_sensor_get_reflect(color_sensor) >= (LIGHT_WHITE + LIGHT_BLACK)/2)
-        {
-            turn =  20; /* 左旋回命令 */
-        }
-        else
-        {
-            turn = -20; /* 右旋回命令 */
-        }
-    }
-
-    /* 倒立振子制御API に渡すパラメータを取得する */
-    motor_ang_l = ev3_motor_get_counts(left_motor);
-    motor_ang_r = ev3_motor_get_counts(right_motor);
-    gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
-    volt = ev3_battery_voltage_mV();
-
-    /* 倒立振子制御APIを呼び出し、倒立走行するための */
-    /* 左右モータ出力値を得る */
-    balance_control(
-        (float)forward,
-        (float)turn,
-        (float)gyro,
-        (float)GYRO_OFFSET,
-        (float)motor_ang_l,
-        (float)motor_ang_r,
-        (float)volt,
-        (signed char*)&pwm_L,
-        (signed char*)&pwm_R);
-
-    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
-    /* 出力0時に、その都度設定する */
-    if (pwm_L == 0)
-    {
-         ev3_motor_stop(left_motor, true);
-    }
-    else
-    {
-        ev3_motor_set_power(left_motor, (int)pwm_L);
-    }
-    
-    if (pwm_R == 0)
-    {
-         ev3_motor_stop(right_motor, true);
-    }
-    else
-    {
-        ev3_motor_set_power(right_motor, (int)pwm_R);
-    }
+	}
+	
 }
 
 /* end of file */
