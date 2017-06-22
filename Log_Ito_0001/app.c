@@ -417,6 +417,10 @@ void line_trace_task(intptr_t unused)
 	{
 		wup_tsk(MAIN_TASK);
 	}
+    if(gyro>150)
+    {
+        wup_tsk(MAIN_TASK);
+    }
 }
 
 //*****************************************************************************
