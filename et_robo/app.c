@@ -11,6 +11,9 @@
 #include "ev3api.h"
 #include "app.h"
 #include "balancer.h"
+#include "common.h"
+
+#include "line_trace.h"
 
 #if defined(BUILD_MODULE)
 #include "module_cfg.h"
@@ -26,84 +29,16 @@
 #define _debug(x)
 #endif
 
-/**
- * センサー、モーターの接続を定義します
- */
-static const sensor_port_t
-    touch_sensor    = EV3_PORT_1,
-    sonar_sensor    = EV3_PORT_2,
-    color_sensor    = EV3_PORT_3,
-    gyro_sensor     = EV3_PORT_4;
+int bt_cmd = 0;     /* Bluetoothコマンド 1:リモートスタート */
+FILE *bt = NULL;     /* Bluetoothファイルハンドル */
 
-static const motor_port_t
-    left_motor      = EV3_PORT_C,
-    right_motor     = EV3_PORT_B,
-    tail_motor      = EV3_PORT_A;
-
-static int      bt_cmd = 0;     /* Bluetoothコマンド 1:リモートスタート */
-static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
-
-/* 下記のマクロは個体/環境に合わせて変更する必要があります */
-/* sample_c1マクロ */
-#define GYRO_OFFSET  0          /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define LIGHT_WHITE  40         /* 白色の光センサ値 */
-#define LIGHT_BLACK  0          /* 黒色の光センサ値 */
-/* sample_c2マクロ */
-#define SONAR_ALERT_DISTANCE 30 /* 超音波センサによる障害物検知距離[cm] */
-/* sample_c3マクロ */
-#define TAIL_ANGLE_STAND_UP  93 /* 完全停止時の角度[度] */
-#define TAIL_ANGLE_DRIVE      3 /* バランス走行時の角度[度] */
-#define P_GAIN             2.5F /* 完全停止用モータ制御比例係数 */
-#define PWM_ABS_MAX          60 /* 完全停止用モータ制御PWM絶対最大値 */
-/* sample_c4マクロ */
-//#define DEVICE_NAME     "ET0"  /* Bluetooth名 hrp2/target/ev3.h BLUETOOTH_LOCAL_NAMEで設定 */
-//#define PASS_KEY        "1234" /* パスキー    hrp2/target/ev3.h BLUETOOTH_PIN_CODEで設定 */
-#define CMD_START         '1'    /* リモートスタートコマンド */
-
-/* LCDフォントサイズ */
-#define CALIB_FONT (EV3_FONT_SMALL)
-#define CALIB_FONT_WIDTH (6/*TODO: magic number*/)
-#define CALIB_FONT_HEIGHT (8/*TODO: magic number*/)
-
-
-#if (LOG_TASK == TASK_ON)
-/* Log の最大回数 */
-#define  LOG_MAX   1000
-
-/* Log fileの名前 */
-#define  LOG_FILE_NAME  "Log_yymmdd.csv"
-
-/* Log用の構造体 */
-/*  反射光センサー値
-   ジャイロセンサ角位置
-   ジャイロセンサ角速度 */
- typedef struct{
-    uint8_t Reflect;
-    int16_t Gyro_angle;
-    int16_t Gyro_rate;  
-}Logger;
-
-/* Log回数の格納変数 */
-int LogNum = 0;
-
-/* Log格納配列 */
-Logger gst_Log_str[LOG_MAX]; /* (1s == 250) */
-#endif
-
-/* 関数プロトタイプ宣言 */
-static int sonar_alert(void);
-static void tail_control(signed int angle);
-
-
-#if (LOG_TASK == TASK_ON)
-void log_str(void);
-void log_commit(void);
-#endif
-
+/* 各難所制御状態 */
+STATUS main_status = STAT_UNKNOWN;
 
 /* メインタスク */
 void main_task(intptr_t unused)
 {
+
     /* LCD画面表示 */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
     ev3_lcd_draw_string("EV3way-ET sample_c4", 0, CALIB_FONT_HEIGHT*1);
@@ -126,9 +61,6 @@ void main_task(intptr_t unused)
 
     /* Bluetooth通信タスクの起動 */
     act_tsk(BT_TASK);
-
-    /* Bluetooth通信タスクの起動 */
-    act_tsk(LINE_TRACE_TASK);
 
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
@@ -159,97 +91,51 @@ void main_task(intptr_t unused)
     balance_init(); /* 倒立振子API初期化 */
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
+    
+    /* スタート通知後、通常のライントレースに移行するように設定 */
+    main_status = STAT_NORMAL; 
 
     /**
     * Main loop for the self-balance control algorithm
     */
-	// 周期ハンドラ開始
-	ev3_sta_cyc(TEST_EV3_CYC1);
-	// バックボタンが押されるまで待つ
-	slp_tsk();  
-    // 周期ハンドラ停止
-	ev3_stp_cyc(TEST_EV3_CYC1); 
+    while(1)
+    {
+        switch (main_status) {
+            /* 通常制御中 */
+            case STAT_NORMAL:
+                /* 通常のライントレース制御 */
+                line_tarce_main();
+                break;
 
+            /* 階段制御中 */
+            case STAT_STAIR:
+                /* T.B.D */
+                break;
+
+            /* ルックアップゲート制御中 */
+            case STAT_LOOK_UP_GATE:
+                /* T.B.D */
+                break;
+
+            /* ガレージ制御中 */
+            case STAT_GAREGE:
+                /* T.B.D */
+                break;
+
+            /* その他 */
+            default:
+                /* T.B.D */
+                break;
+        }
+        tslp_tsk(4); /* 4msec周期起動 */
+    }
     ev3_motor_stop(left_motor, false);
     ev3_motor_stop(right_motor, false);
 
-	log_commit();
     ter_tsk(BT_TASK);
     fclose(bt);
 
     ext_tsk();
-}
-
-void test_ev3_cychdr(intptr_t idx) 
-{
-    signed char forward;      /* 前後進命令 */
-    signed char turn;         /* 旋回命令 */
-    signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
-
-    int32_t motor_ang_l, motor_ang_r;
-    int gyro, volt;
-
-    //if (ev3_button_is_pressed(BACK_BUTTON)) break;
-
-    tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
-
-    if (sonar_alert() == 1) /* 障害物検知 */
-    {
-        forward = turn = 0; /* 障害物を検知したら停止 */
-    }
-    else
-    {
-        forward = 30; /* 前進命令 */
-        if (ev3_color_sensor_get_reflect(color_sensor) >= (LIGHT_WHITE + LIGHT_BLACK)/2)
-        {
-            turn =  20; /* 左旋回命令 */
-        }
-        else
-        {
-            turn = -20; /* 右旋回命令 */
-        }
-    }
-
-    /* 倒立振子制御API に渡すパラメータを取得する */
-    motor_ang_l = ev3_motor_get_counts(left_motor);
-    motor_ang_r = ev3_motor_get_counts(right_motor);
-    gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
-    volt = ev3_battery_voltage_mV();
-
-    /* 倒立振子制御APIを呼び出し、倒立走行するための */
-    /* 左右モータ出力値を得る */
-    balance_control(
-        (float)forward,
-        (float)turn,
-        (float)gyro,
-        (float)GYRO_OFFSET,
-        (float)motor_ang_l,
-        (float)motor_ang_r,
-        (float)volt,
-        (signed char*)&pwm_L,
-        (signed char*)&pwm_R);
-
-    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
-    /* 出力0時に、その都度設定する */
-    if (pwm_L == 0)
-    {
-         ev3_motor_stop(left_motor, true);
-    }
-    else
-    {
-        ev3_motor_set_power(left_motor, (int)pwm_L);
-    }
-    
-    if (pwm_R == 0)
-    {
-         ev3_motor_stop(right_motor, true);
-    }
-    else
-    {
-        ev3_motor_set_power(right_motor, (int)pwm_R);
-    }
-	
-	log_str();
 }
 
 //*****************************************************************************
@@ -258,7 +144,7 @@ void test_ev3_cychdr(intptr_t idx)
 // 返り値 : 1(障害物あり)/0(障害物無し)
 // 概要 : 超音波センサによる障害物検知
 //*****************************************************************************
-static int sonar_alert(void)
+int sonar_alert(void)
 {
     static unsigned int counter = 0;
     static int alert = 0;
@@ -293,7 +179,7 @@ static int sonar_alert(void)
 // 返り値 : 無し
 // 概要 : 走行体完全停止用モータの角度制御
 //*****************************************************************************
-static void tail_control(signed int angle)
+void tail_control(signed int angle)
 {
     float pwm = (float)(angle - ev3_motor_get_counts(tail_motor))*P_GAIN; /* 比例制御 */
     /* PWM出力飽和処理 */
@@ -340,97 +226,4 @@ void bt_task(intptr_t unused)
     }
 }
 
-
-#if (LOG_TASK == TASK_ON)
-//*****************************************************************************
-// 関数名 : log_str
-// 引数 : なし
-// 返り値 : なし
-// 概要 : グローバル配列 gst_Log_strに現在のセンサー値を格納
-//
-//*****************************************************************************
-void log_str(void)
-{
-	if(LogNum < LOG_MAX)
-	{
-	    gst_Log_str[LogNum].Reflect = ev3_color_sensor_get_reflect(color_sensor);
-	    gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
-	    gst_Log_str[LogNum].Gyro_rate = ev3_gyro_sensor_get_rate(gyro_sensor);
-	    LogNum++;	
-	}
-}
-
-//*****************************************************************************
-// 関数名 : log_commit
-// 引数 : なし
-// 返り値 : なし
-// 概要 : グローバル配列 gst_Log_strに格納されているデータをファイル出力する
-//
-//*****************************************************************************
-void log_commit(void)
-{
-    FILE *fp; /* ファイルポインタ */
-	int  i;   /* インクリメント */
-
-    /* Logファイル作成 */
-	fp=fopen(LOG_FILE_NAME,"a");
-	/* 列タイトル挿入 */
-	fprintf(fp,"反射光センサー, ジャイロ角度, ジャイロセンサ角速度　\n");
-	
-	/* Logの出力 */
-	for(i = 0 ; i < LOG_MAX; i++)
-	{
-		fprintf(fp,"%d,%d,%d\n",gst_Log_str[i].Reflect, gst_Log_str[i].Gyro_angle, gst_Log_str[i].Gyro_rate);
-	}
-	
-	fclose(fp);
-}
-
-#endif
-//*****************************************************************************
-// 関数名 : line_trace_task
-// 引数 : unused
-// 返り値 : なし
-// 概要 : 
-//
-//*****************************************************************************
-void line_trace_task(intptr_t unused)
-{
-    // T.B.D
-}
-
-//*****************************************************************************
-// 関数名 : stair_task
-// 引数 : unused
-// 返り値 : なし
-// 概要 : 
-//
-//*****************************************************************************
-void stair_task(intptr_t unused)
-{
-    // T.B.D
-}
-
-//*****************************************************************************
-// 関数名 : garage_task
-// 引数 : unused
-// 返り値 : なし
-// 概要 : 
-//
-//*****************************************************************************
-void garage_task(intptr_t unused)
-{
-    // T.B.D
-}
-
-//*****************************************************************************
-// 関数名 : look_up_gate_task
-// 引数 : unused
-// 返り値 : なし
-// 概要 : 
-//
-//*****************************************************************************
-void look_up_gate_task(intptr_t unused)
-{
-    // T.B.D
-}
+/* end of file */
