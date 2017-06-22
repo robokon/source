@@ -304,7 +304,7 @@ void log_str(void)
 	if(LogNum < LOG_MAX)
 	{
 	    gst_Log_str[LogNum].Reflect = ev3_color_sensor_get_reflect(color_sensor);
-	    //gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
+	    gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
 	    gst_Log_str[LogNum].Gyro_rate = ev3_gyro_sensor_get_rate(gyro_sensor);
 	    LogNum++;	
 	}
