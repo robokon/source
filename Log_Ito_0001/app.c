@@ -104,10 +104,6 @@ void log_commit(void);
 /* メインタスク */
 void main_task(intptr_t unused)
 {
-    signed char forward;      /* 前後進命令 */
-    signed char turn;         /* 旋回命令 */
-    signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
-
     /* LCD画面表示 */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
     ev3_lcd_draw_string("EV3way-ET sample_c4", 0, CALIB_FONT_HEIGHT*1);
@@ -130,9 +126,6 @@ void main_task(intptr_t unused)
 
     /* Bluetooth通信タスクの起動 */
     act_tsk(BT_TASK);
-
-    /* Bluetooth通信タスクの起動 */
-    act_tsk(LINE_TRACE_TASK);
 
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
@@ -167,80 +160,46 @@ void main_task(intptr_t unused)
     /**
     * Main loop for the self-balance control algorithm
     */
-    while(1)
-    {
-        int32_t motor_ang_l, motor_ang_r;
-        int gyro, volt;
+	// 周期ハンドラ開始
+//	ev3_sta_cyc(LOG_CREATE_TASK);
+	ev3_sta_cyc(TEST_EV3_CYC1);
+	// バックボタンが押されるまで待つ
+	slp_tsk();
+    // 周期ハンドラ停止
+//	ev3_stp_cyc(LOG_CREATE_TASK);
+	ev3_stp_cyc(TEST_EV3_CYC1); 
 
-        if (ev3_button_is_pressed(BACK_BUTTON)) break;
-
-        tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
-
-        if (sonar_alert() == 1) /* 障害物検知 */
-        {
-            forward = turn = 0; /* 障害物を検知したら停止 */
-        }
-        else
-        {
-            forward = 30; /* 前進命令 */
-            if (ev3_color_sensor_get_reflect(color_sensor) >= (LIGHT_WHITE + LIGHT_BLACK)/2)
-            {
-                turn =  20; /* 左旋回命令 */
-            }
-            else
-            {
-                turn = -20; /* 右旋回命令 */
-            }
-        }
-
-        /* 倒立振子制御API に渡すパラメータを取得する */
-        motor_ang_l = ev3_motor_get_counts(left_motor);
-        motor_ang_r = ev3_motor_get_counts(right_motor);
-        gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
-        volt = ev3_battery_voltage_mV();
-
-        /* 倒立振子制御APIを呼び出し、倒立走行するための */
-        /* 左右モータ出力値を得る */
-        balance_control(
-            (float)forward,
-            (float)turn,
-            (float)gyro,
-            (float)GYRO_OFFSET,
-            (float)motor_ang_l,
-            (float)motor_ang_r,
-            (float)volt,
-            (signed char*)&pwm_L,
-            (signed char*)&pwm_R);
-
-        /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
-        /* 出力0時に、その都度設定する */
-        if (pwm_L == 0)
-        {
-             ev3_motor_stop(left_motor, true);
-        }
-        else
-        {
-            ev3_motor_set_power(left_motor, (int)pwm_L);
-        }
-        
-        if (pwm_R == 0)
-        {
-             ev3_motor_stop(right_motor, true);
-        }
-        else
-        {
-            ev3_motor_set_power(right_motor, (int)pwm_R);
-        }
-
-        tslp_tsk(4); /* 4msec周期起動 */
-    }
     ev3_motor_stop(left_motor, false);
     ev3_motor_stop(right_motor, false);
 
+	log_commit();
     ter_tsk(BT_TASK);
     fclose(bt);
 
     ext_tsk();
+}
+
+//*****************************************************************************
+// 関数名 : sonar_alert
+// 引数 : 無し
+// 返り値 : 1(障害物あり)/0(障害物無し)
+// 概要 : 超音波センサによる障害物検知
+//*****************************************************************************
+void test_ev3_cys1(intptr_t idx) 
+{
+    act_tsk(LINE_TRACE_TASK);
+	act_tsk(LOG_CREATE_TASK);
+}
+
+//*****************************************************************************
+// 関数名 : sonar_alert
+// 引数 : 無し
+// 返り値 : 1(障害物あり)/0(障害物無し)
+// 概要 : 超音波センサによる障害物検知
+//*****************************************************************************
+void log_create_task(intptr_t idx) 
+{
+	log_str();
 }
 
 //*****************************************************************************
@@ -387,7 +346,77 @@ void log_commit(void)
 //*****************************************************************************
 void line_trace_task(intptr_t unused)
 {
-    // T.B.D
+	signed char forward;      /* 前後進命令 */
+    signed char turn;         /* 旋回命令 */
+    signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
+
+    int32_t motor_ang_l, motor_ang_r;
+    int gyro, volt;
+
+    //if (ev3_button_is_pressed(BACK_BUTTON)) break;
+
+    tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
+
+    if (sonar_alert() == 1) /* 障害物検知 */
+    {
+        forward = turn = 0; /* 障害物を検知したら停止 */
+    }
+    else
+    {
+        forward = 30; /* 前進命令 */
+        if (ev3_color_sensor_get_reflect(color_sensor) >= (LIGHT_WHITE + LIGHT_BLACK)/2)
+        {
+            turn =  20; /* 左旋回命令 */
+        }
+        else
+        {
+            turn = -20; /* 右旋回命令 */
+        }
+    }
+
+    /* 倒立振子制御API に渡すパラメータを取得する */
+    motor_ang_l = ev3_motor_get_counts(left_motor);
+    motor_ang_r = ev3_motor_get_counts(right_motor);
+    gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
+    volt = ev3_battery_voltage_mV();
+
+    /* 倒立振子制御APIを呼び出し、倒立走行するための */
+    /* 左右モータ出力値を得る */
+    balance_control(
+        (float)forward,
+        (float)turn,
+        (float)gyro,
+        (float)GYRO_OFFSET,
+        (float)motor_ang_l,
+        (float)motor_ang_r,
+        (float)volt,
+        (signed char*)&pwm_L,
+        (signed char*)&pwm_R);
+
+    /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
+    /* 出力0時に、その都度設定する */
+    if (pwm_L == 0)
+    {
+         ev3_motor_stop(left_motor, true);
+    }
+    else
+    {
+        ev3_motor_set_power(left_motor, (int)pwm_L);
+    }
+    
+    if (pwm_R == 0)
+    {
+         ev3_motor_stop(right_motor, true);
+    }
+    else
+    {
+        ev3_motor_set_power(right_motor, (int)pwm_R);
+    }
+
+	if(ev3_button_is_pressed(BACK_BUTTON))
+	{
+		wup_tsk(MAIN_TASK);
+	}
 }
 
 //*****************************************************************************
