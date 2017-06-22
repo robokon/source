@@ -169,6 +169,8 @@ void main_task(intptr_t unused)
     */
     while(1)
     {
+        log_str();
+
         int32_t motor_ang_l, motor_ang_r;
         int gyro, volt;
 
@@ -231,9 +233,10 @@ void main_task(intptr_t unused)
         {
             ev3_motor_set_power(right_motor, (int)pwm_R);
         }
-
         tslp_tsk(4); /* 4msecŽüŠú‹N“® */
     }
+    log_commit();
+
     ev3_motor_stop(left_motor, false);
     ev3_motor_stop(right_motor, false);
 
