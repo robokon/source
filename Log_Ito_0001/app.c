@@ -188,7 +188,7 @@ void main_task(intptr_t unused)
 void test_ev3_cys1(intptr_t idx) 
 {
     act_tsk(LINE_TRACE_TASK);
-	act_tsk(LOG_CREATE_TASK);
+    act_tsk(LOG_CREATE_TASK);
 }
 
 //*****************************************************************************
@@ -304,7 +304,7 @@ void log_str(void)
 	if(LogNum < LOG_MAX)
 	{
 	    gst_Log_str[LogNum].Reflect = ev3_color_sensor_get_reflect(color_sensor);
-	    gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
+	    //gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
 	    gst_Log_str[LogNum].Gyro_rate = ev3_gyro_sensor_get_rate(gyro_sensor);
 	    LogNum++;	
 	}
@@ -417,7 +417,7 @@ void line_trace_task(intptr_t unused)
 	{
 		wup_tsk(MAIN_TASK);
 	}
-    if(gyro>150)
+    if(gyro < -150 || 150 < gyro)
     {
         wup_tsk(MAIN_TASK);
     }
