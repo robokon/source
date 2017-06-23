@@ -1,9 +1,7 @@
-/*
- * line_tarce.h
- * 
- */
-
 #include "line_trace.h"
+#include "Distance.h"
+
+#define DISTANCE_NOTIFY (1000.0)
 
 //*****************************************************************************
 // ŠÖ”–¼ : line_tarce_main
@@ -81,6 +79,19 @@ void line_tarce_main()
     {
         ev3_motor_set_power(right_motor, (int)pwm_R);
     }
+	
+	Distance_update(); /* ˆÚ“®‹——£‰ÁZ */
+	
+	if( Distance_getDistance() > DISTANCE_NOTIFY )
+	{
+		/* DISTANCE_NOTIFYˆÈãi‚ñ‚¾‚ç‰¹‚ğo‚· */
+		ev3_speaker_set_volume(100); 
+		ev3_speaker_play_tone(NOTE_C4, 100);
+		
+		/* ‹——£Œv‘ª•Ï”‰Šú‰» */
+		Distance_init();
+	}
+	
 }
 
 /* end of file */
