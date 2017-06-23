@@ -160,15 +160,16 @@ void main_task(intptr_t unused)
     /**
     * Main loop for the self-balance control algorithm
     */
-	// 周期ハンドラ開始
-//	ev3_sta_cyc(LOG_CREATE_TASK);
-	ev3_sta_cyc(TEST_EV3_CYC1);
+    // 周期ハンドラ開始
+    ev3_sta_cyc(TEST_EV3_CYC1);
+    ev3_sta_cyc(TEST_EV3_CYC2);
+
 	// バックボタンが押されるまで待つ
 	slp_tsk();
     // 周期ハンドラ停止
-//	ev3_stp_cyc(LOG_CREATE_TASK);
-	ev3_stp_cyc(TEST_EV3_CYC1); 
-
+    ev3_stp_cyc(TEST_EV3_CYC1); 
+    ev3_stp_cyc(TEST_EV3_CYC2); 
+    
     ev3_motor_stop(left_motor, false);
     ev3_motor_stop(right_motor, false);
 
@@ -180,14 +181,24 @@ void main_task(intptr_t unused)
 }
 
 //*****************************************************************************
-// 関数名 : sonar_alert
+// 関数名 : test_ev3_cys1
 // 引数 : 無し
-// 返り値 : 1(障害物あり)/0(障害物無し)
-// 概要 : 超音波センサによる障害物検知
+// 返り値 :
+// 概要 : 周期タスク（ライントレース）
 //*****************************************************************************
 void test_ev3_cys1(intptr_t idx) 
 {
     act_tsk(LINE_TRACE_TASK);
+}
+
+//*****************************************************************************
+// 関数名 : test_ev3_cys2
+// 引数 : 無し
+// 返り値 :
+// 概要 : 周期タスク（ログ）
+//*****************************************************************************
+void test_ev3_cys2(intptr_t idx) 
+{
     act_tsk(LOG_CREATE_TASK);
 }
 

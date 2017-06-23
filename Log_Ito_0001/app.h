@@ -96,6 +96,7 @@ extern void stair_task(intptr_t exinf);
 extern void garage_task(intptr_t exinf);
 extern void look_up_gate_task(intptr_t exinf);
 extern void test_ev3_cys1(intptr_t exinf);
+extern void test_ev3_cys2(intptr_t exinf);
 extern void log_create_task(intptr_t exinf);
 	
 #if (LOG_TASK == TASK_ON)
