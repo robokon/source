@@ -15,7 +15,6 @@
 
 #include "line_trace.h"
 #include "Distance.h"
-#include "stair.h"
 
 #if defined(BUILD_MODULE)
 #include "module_cfg.h"
@@ -97,7 +96,7 @@ void main_task(intptr_t unused)
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
     
     /* スタート通知後、通常のライントレースに移行するように設定 */
-    main_status = STAT_STAIR; 
+    main_status = STAT_NORMAL; 
 
     /**
     * Main loop for the self-balance control algorithm
@@ -113,7 +112,7 @@ void main_task(intptr_t unused)
 
             /* 階段制御中 */
             case STAT_STAIR:
-                stair_main();
+                /* T.B.D */
                 break;
 
             /* ルックアップゲート制御中 */
@@ -131,6 +130,8 @@ void main_task(intptr_t unused)
                 /* T.B.D */
                 break;
         }
+        
+        if (ev3_button_is_pressed(BACK_BUTTON)) break;;        
         tslp_tsk(4); /* 4msec周期起動 */
     }
     ev3_motor_stop(left_motor, false);
