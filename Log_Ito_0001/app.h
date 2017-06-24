@@ -100,7 +100,7 @@ extern void test_ev3_cys2(intptr_t exinf);
 extern void log_create_task(intptr_t exinf);
 	
 #if (LOG_TASK == TASK_ON)
-extern void log_str(void);
+extern void log_str(uint8_t reflect, int16_t rate, int16_t turn);
 extern void log_commit(void);
 #endif
 

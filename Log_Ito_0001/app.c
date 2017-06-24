@@ -43,11 +43,13 @@ static const motor_port_t
 static int      bt_cmd = 0;     /* Bluetoothコマンド 1:リモートスタート */
 static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 
+static int LIGHT_WHITE=0;         /* 白色の光センサ値 */
+static int LIGHT_BLACK=40;          /* 黒色の光センサ値 */
+
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* sample_c1マクロ */
 #define GYRO_OFFSET  0          /* ジャイロセンサオフセット値(角速度0[deg/sec]時) */
-#define LIGHT_WHITE  40         /* 白色の光センサ値 */
-#define LIGHT_BLACK  0          /* 黒色の光センサ値 */
+
 /* sample_c2マクロ */
 #define SONAR_ALERT_DISTANCE 30 /* 超音波センサによる障害物検知距離[cm] */
 /* sample_c3マクロ */
@@ -81,6 +83,7 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
     uint8_t Reflect;
     int16_t Gyro_angle;
     int16_t Gyro_rate;  
+    int16_t Turn;
 }Logger;
 
 /* Log回数の格納変数 */
@@ -96,7 +99,7 @@ static void tail_control(signed int angle);
 
 
 #if (LOG_TASK == TASK_ON)
-void log_str(void);
+void log_str(uint8_t reflect, int16_t rate, int16_t turn);
 void log_commit(void);
 #endif
 
@@ -104,6 +107,7 @@ void log_commit(void);
 /* メインタスク */
 void main_task(intptr_t unused)
 {
+
     /* LCD画面表示 */
     ev3_lcd_fill_rect(0, 0, EV3_LCD_WIDTH, EV3_LCD_HEIGHT, EV3_LCD_WHITE);
     ev3_lcd_draw_string("EV3way-ET sample_c4", 0, CALIB_FONT_HEIGHT*1);
@@ -129,6 +133,32 @@ void main_task(intptr_t unused)
 
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
+    /*白色の光センサ値取得*/
+    while(1)
+    {
+        if (ev3_touch_sensor_is_pressed(touch_sensor) == 1)
+        {
+            LIGHT_WHITE = ev3_color_sensor_get_reflect(color_sensor);
+            log_str(LIGHT_WHITE,0,0);
+            break; /* タッチセンサが押された */
+        }
+        tslp_tsk(10); /* 10msecウェイト */
+    }
+     tslp_tsk(1000); /* 10msecウェイト */
+    /*黒色の光センサ値*/
+    while(1)
+    {
+        if (ev3_touch_sensor_is_pressed(touch_sensor) == 1)
+        {
+            LIGHT_BLACK = ev3_color_sensor_get_reflect(color_sensor);
+            log_str(LIGHT_BLACK,0,0);
+            break; /* タッチセンサが押された */
+        }
+        tslp_tsk(10); /* 10msecウェイト */
+    }
+    tslp_tsk(1000); /* 10msecウェイト */
+
+    
     /* スタート待機 */
     while(1)
     {
@@ -143,10 +173,9 @@ void main_task(intptr_t unused)
         {
             break; /* タッチセンサが押された */
         }
-
         tslp_tsk(10); /* 10msecウェイト */
     }
-
+    
     /* 走行モーターエンコーダーリセット */
     ev3_motor_reset_counts(left_motor);
     ev3_motor_reset_counts(right_motor);
@@ -162,13 +191,13 @@ void main_task(intptr_t unused)
     */
     // 周期ハンドラ開始
     ev3_sta_cyc(TEST_EV3_CYC1);
-    ev3_sta_cyc(TEST_EV3_CYC2);
+    //ev3_sta_cyc(TEST_EV3_CYC2);
 
 	// バックボタンが押されるまで待つ
 	slp_tsk();
     // 周期ハンドラ停止
     ev3_stp_cyc(TEST_EV3_CYC1); 
-    ev3_stp_cyc(TEST_EV3_CYC2); 
+    //ev3_stp_cyc(TEST_EV3_CYC2); 
     
     ev3_motor_stop(left_motor, false);
     ev3_motor_stop(right_motor, false);
@@ -210,7 +239,7 @@ void test_ev3_cys2(intptr_t idx)
 //*****************************************************************************
 void log_create_task(intptr_t idx) 
 {
-	log_str();
+	//log_str();
 }
 
 //*****************************************************************************
@@ -310,13 +339,15 @@ void bt_task(intptr_t unused)
 // 概要 : グローバル配列 gst_Log_strに現在のセンサー値を格納
 //
 //*****************************************************************************
-void log_str(void)
+void log_str(uint8_t reflect, int16_t rate, int16_t turn)
 {
 	if(LogNum < LOG_MAX)
 	{
-	    gst_Log_str[LogNum].Reflect = ev3_color_sensor_get_reflect(color_sensor);
-	    gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
-	    gst_Log_str[LogNum].Gyro_rate = ev3_gyro_sensor_get_rate(gyro_sensor);
+	    gst_Log_str[LogNum].Reflect = reflect;
+	    //gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
+	    gst_Log_str[LogNum].Gyro_rate = rate;
+	    gst_Log_str[LogNum].Turn = turn;
+	    
 	    LogNum++;	
 	}
 }
@@ -336,12 +367,12 @@ void log_commit(void)
     /* Logファイル作成 */
 	fp=fopen(LOG_FILE_NAME,"a");
 	/* 列タイトル挿入 */
-	fprintf(fp,"反射光センサー, ジャイロ角度, ジャイロセンサ角速度　\n");
+	fprintf(fp,"反射光センサー, ジャイロ角度, ジャイロセンサ角速度,ターン　\n");
 	
 	/* Logの出力 */
 	for(i = 0 ; i < LOG_MAX; i++)
 	{
-		fprintf(fp,"%d,%d,%d\n",gst_Log_str[i].Reflect, gst_Log_str[i].Gyro_angle, gst_Log_str[i].Gyro_rate);
+		fprintf(fp,"%d,%d,%d,%d\n",gst_Log_str[i].Reflect, gst_Log_str[i].Gyro_angle, gst_Log_str[i].Gyro_rate, gst_Log_str[i].Turn);
 	}
 	
 	fclose(fp);
@@ -355,6 +386,10 @@ void log_commit(void)
 // 概要 : 
 //
 //*****************************************************************************
+#define DELTA_T 0.004
+#define KP 0.3
+#define KD 1.0
+static int diff [2];
 void line_trace_task(intptr_t unused)
 {
 	signed char forward;      /* 前後進命令 */
@@ -363,10 +398,11 @@ void line_trace_task(intptr_t unused)
 
     int32_t motor_ang_l, motor_ang_r;
     int gyro, volt;
-
-    //if (ev3_button_is_pressed(BACK_BUTTON)) break;
-
+    uint8_t color_sensor_reflect;
+    
     tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
+
+    color_sensor_reflect= ev3_color_sensor_get_reflect(color_sensor);
 
     if (sonar_alert() == 1) /* 障害物検知 */
     {
@@ -374,14 +410,23 @@ void line_trace_task(intptr_t unused)
     }
     else
     {
-        forward = 30; /* 前進命令 */
-        if (ev3_color_sensor_get_reflect(color_sensor) >= (LIGHT_WHITE + LIGHT_BLACK)/2)
+        float p,d;
+        
+        forward = 80; /* 前進命令 */
+        diff[0] = diff[1];
+        diff[1] = color_sensor_reflect - ((LIGHT_WHITE + LIGHT_BLACK)/2);
+        
+        p = KP * diff[1];
+        d = KD * (diff[1]-diff[0]) / DELTA_T;
+        
+        turn = p + d;
+        if(100 < turn)
         {
-            turn =  20; /* 左旋回命令 */
+            turn = 100;
         }
-        else
+        else if(turn < -100)
         {
-            turn = -20; /* 右旋回命令 */
+            turn = -100;
         }
     }
 
@@ -404,6 +449,7 @@ void line_trace_task(intptr_t unused)
         (signed char*)&pwm_L,
         (signed char*)&pwm_R);
 
+    log_str(color_sensor_reflect,(int16_t)gyro,(int16_t)turn);
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
     if (pwm_L == 0)
