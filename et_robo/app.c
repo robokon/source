@@ -14,6 +14,7 @@
 #include "common.h"
 
 #include "line_trace.h"
+#include "Distance.h"
 
 #if defined(BUILD_MODULE)
 #include "module_cfg.h"
@@ -64,6 +65,8 @@ void main_task(intptr_t unused)
 
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
+	Distance_init(); /* 距離計測変数初期化 */
+	
     /* スタート待機 */
     while(1)
     {
@@ -127,6 +130,8 @@ void main_task(intptr_t unused)
                 /* T.B.D */
                 break;
         }
+        
+        if (ev3_button_is_pressed(BACK_BUTTON)) break;;        
         tslp_tsk(4); /* 4msec周期起動 */
     }
     ev3_motor_stop(left_motor, false);
