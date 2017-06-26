@@ -392,8 +392,11 @@ void log_commit(void)
 //*****************************************************************************
 #define DELTA_T 0.004
 #define KP 0.33
-#define KD 0.3
+#define KI 1.0
+#define KD 0.06
 static int diff [2];
+static float integral;
+
 void line_trace_task(intptr_t unused)
 {
 	signed char forward;      /* ëOå„êiñΩóﬂ */
@@ -419,14 +422,16 @@ void line_trace_task(intptr_t unused)
     }
     else
     {
-        float p,d;
+        float p,i,d;
         diff[0] = diff[1];
         diff[1] = color_sensor_reflect - ((LIGHT_WHITE + LIGHT_BLACK)/2);
-        
+    	integral += (diff[1] - diff[0]) / 2.0 * DELTA_T;
+    	
         p = KP * diff[1];
+    	i = KI * integral;
         d = KD * (diff[1]-diff[0]) / DELTA_T;
         
-        turn = p + d;
+        turn = p + i + d;
         temp_turn = turn;
     	temp_p = p;
     	temp_d = d;
