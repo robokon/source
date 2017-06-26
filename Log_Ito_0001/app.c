@@ -84,6 +84,8 @@ static int LIGHT_BLACK=40;          /* 黒色の光センサ値 */
     int16_t Gyro_angle;
     int16_t Gyro_rate;  
     int16_t Turn;
+ 	int16_t P;
+ 	int16_t D;
 }Logger;
 
 /* Log回数の格納変数 */
@@ -99,7 +101,7 @@ static void tail_control(signed int angle);
 
 
 #if (LOG_TASK == TASK_ON)
-void log_str(uint8_t reflect, int16_t rate, int16_t turn);
+void log_str(uint8_t reflect, int16_t rate, int16_t turn,int16_t p,int16_t d);
 void log_commit(void);
 #endif
 
@@ -139,7 +141,7 @@ void main_task(intptr_t unused)
         if (ev3_touch_sensor_is_pressed(touch_sensor) == 1)
         {
             LIGHT_WHITE = ev3_color_sensor_get_reflect(color_sensor);
-            log_str(LIGHT_WHITE,0,0);
+            log_str(LIGHT_WHITE,0,0,0,0);
             break; /* タッチセンサが押された */
         }
         tslp_tsk(10); /* 10msecウェイト */
@@ -151,7 +153,7 @@ void main_task(intptr_t unused)
         if (ev3_touch_sensor_is_pressed(touch_sensor) == 1)
         {
             LIGHT_BLACK = ev3_color_sensor_get_reflect(color_sensor);
-            log_str(LIGHT_BLACK,0,0);
+            log_str(LIGHT_BLACK,0,0,0,0);
             break; /* タッチセンサが押された */
         }
         tslp_tsk(10); /* 10msecウェイト */
@@ -339,7 +341,7 @@ void bt_task(intptr_t unused)
 // 概要 : グローバル配列 gst_Log_strに現在のセンサー値を格納
 //
 //*****************************************************************************
-void log_str(uint8_t reflect, int16_t rate, int16_t turn)
+void log_str(uint8_t reflect, int16_t rate, int16_t turn, int16_t p, int16_t d)
 {
 	if(LogNum < LOG_MAX)
 	{
@@ -347,7 +349,9 @@ void log_str(uint8_t reflect, int16_t rate, int16_t turn)
 	    //gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
 	    gst_Log_str[LogNum].Gyro_rate = rate;
 	    gst_Log_str[LogNum].Turn = turn;
-	    
+	    gst_Log_str[LogNum].P = p;
+		gst_Log_str[LogNum].D = d;
+		
 	    LogNum++;	
 	}
 }
@@ -367,12 +371,12 @@ void log_commit(void)
     /* Logファイル作成 */
 	fp=fopen(LOG_FILE_NAME,"a");
 	/* 列タイトル挿入 */
-	fprintf(fp,"反射光センサー, ジャイロ角度, ジャイロセンサ角速度,ターン　\n");
+	fprintf(fp,"反射光センサー, ジャイロ角度, ジャイロセンサ角速度,ターン,P,D　\n");
 	
 	/* Logの出力 */
 	for(i = 0 ; i < LOG_MAX; i++)
 	{
-		fprintf(fp,"%d,%d,%d,%d\n",gst_Log_str[i].Reflect, gst_Log_str[i].Gyro_angle, gst_Log_str[i].Gyro_rate, gst_Log_str[i].Turn);
+		fprintf(fp,"%d,%d,%d,%d,%d,%d\n",gst_Log_str[i].Reflect, gst_Log_str[i].Gyro_angle, gst_Log_str[i].Gyro_rate, gst_Log_str[i].Turn, gst_Log_str[i].P, gst_Log_str[i].D);
 	}
 	
 	fclose(fp);
@@ -387,8 +391,8 @@ void log_commit(void)
 //
 //*****************************************************************************
 #define DELTA_T 0.004
-#define KP 0.3
-#define KD 1.0
+#define KP 0.33
+#define KD 0.3
 static int diff [2];
 void line_trace_task(intptr_t unused)
 {
@@ -404,6 +408,11 @@ void line_trace_task(intptr_t unused)
 
     color_sensor_reflect= ev3_color_sensor_get_reflect(color_sensor);
 
+
+    int temp_turn=1000;
+    int temp_p=1000;
+	int temp_d=1000;
+
     if (sonar_alert() == 1) /* 障害物検知 */
     {
         forward = turn = 0; /* 障害物を検知したら停止 */
@@ -411,8 +420,6 @@ void line_trace_task(intptr_t unused)
     else
     {
         float p,d;
-        
-        forward = 80; /* 前進命令 */
         diff[0] = diff[1];
         diff[1] = color_sensor_reflect - ((LIGHT_WHITE + LIGHT_BLACK)/2);
         
@@ -420,7 +427,11 @@ void line_trace_task(intptr_t unused)
         d = KD * (diff[1]-diff[0]) / DELTA_T;
         
         turn = p + d;
-        if(100 < turn)
+        temp_turn = turn;
+    	temp_p = p;
+    	temp_d = d;
+        
+    	if(100 < turn)
         {
             turn = 100;
         }
@@ -428,6 +439,15 @@ void line_trace_task(intptr_t unused)
         {
             turn = -100;
         }
+    	
+    	if(100 > d)
+    	{
+    		forward = 80; /* 前進命令 */
+    	}
+    	else
+    	{
+    		forward = 40;
+    	}
     }
 
     /* 倒立振子制御API に渡すパラメータを取得する */
@@ -435,6 +455,9 @@ void line_trace_task(intptr_t unused)
     motor_ang_r = ev3_motor_get_counts(right_motor);
     gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
     volt = ev3_battery_voltage_mV();
+
+    log_str(color_sensor_reflect,(int16_t)gyro,(int16_t)temp_turn, (int16_t)temp_p, (int16_t)temp_d);
+
 
     /* 倒立振子制御APIを呼び出し、倒立走行するための */
     /* 左右モータ出力値を得る */
@@ -449,7 +472,7 @@ void line_trace_task(intptr_t unused)
         (signed char*)&pwm_L,
         (signed char*)&pwm_R);
 
-    log_str(color_sensor_reflect,(int16_t)gyro,(int16_t)turn);
+
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
     if (pwm_L == 0)
