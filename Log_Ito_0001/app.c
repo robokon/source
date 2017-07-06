@@ -53,7 +53,8 @@ static int LIGHT_BLACK=100;          /* 黒色の光センサ値 */
 /* sample_c2マクロ */
 #define SONAR_ALERT_DISTANCE 30 /* 超音波センサによる障害物検知距離[cm] */
 /* sample_c3マクロ */
-#define TAIL_ANGLE_STAND_UP  93 /* 完全停止時の角度[度] */
+#define TAIL_ANGLE_STAND_UP  85 /* 完全停止時の角度[度] */
+#define TAIL_ANGLE_START     98 /* スタート時の角度[度] */
 #define TAIL_ANGLE_DRIVE      3 /* バランス走行時の角度[度] */
 #define P_GAIN             2.5F /* 完全停止用モータ制御比例係数 */
 #define PWM_ABS_MAX          60 /* 完全停止用モータ制御PWM絶対最大値 */
@@ -97,7 +98,7 @@ Logger gst_Log_str[LOG_MAX]; /* (1s == 250) */
 
 /* 関数プロトタイプ宣言 */
 static int sonar_alert(void);
-static void tail_control(signed int angle);
+static float tail_control(signed int angle);
 
 
 #if (LOG_TASK == TASK_ON)
@@ -188,10 +189,21 @@ void main_task(intptr_t unused)
 
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
+    /*スタート処理*/
+	while(1)
+	{
+		float tail = 0;
+		tail = tail_control(TAIL_ANGLE_START);
+		if(tail==0)
+		{
+			break;
+		}
+	}
+	
     /**
     * Main loop for the self-balance control algorithm
     */
-    // 周期ハンドラ開始
+	// 周期ハンドラ開始
     ev3_sta_cyc(TEST_EV3_CYC1);
     //ev3_sta_cyc(TEST_EV3_CYC2);
 
@@ -285,7 +297,7 @@ static int sonar_alert(void)
 // 返り値 : 無し
 // 概要 : 走行体完全停止用モータの角度制御
 //*****************************************************************************
-static void tail_control(signed int angle)
+static float tail_control(signed int angle)
 {
     float pwm = (float)(angle - ev3_motor_get_counts(tail_motor))*P_GAIN; /* 比例制御 */
     /* PWM出力飽和処理 */
@@ -306,6 +318,7 @@ static void tail_control(signed int angle)
     {
         ev3_motor_set_power(tail_motor, (signed char)pwm);
     }
+	return pwm;
 }
 
 //*****************************************************************************
