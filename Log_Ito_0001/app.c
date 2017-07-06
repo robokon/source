@@ -44,7 +44,7 @@ static int      bt_cmd = 0;     /* Bluetoothコマンド 1:リモートスタート */
 static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 
 static int LIGHT_WHITE=0;         /* 白色の光センサ値 */
-static int LIGHT_BLACK=40;          /* 黒色の光センサ値 */
+static int LIGHT_BLACK=100;          /* 黒色の光センサ値 */
 
 /* 下記のマクロは個体/環境に合わせて変更する必要があります */
 /* sample_c1マクロ */
@@ -391,11 +391,11 @@ void log_commit(void)
 //
 //*****************************************************************************
 #define DELTA_T 0.004
-#define KP 0.33
-#define KI 1.0
-#define KD 0.06
+#define KP 0.5
+#define KI 0.0
+#define KD 0.03
 static int diff [2];
-static float integral;
+static float integral=0;
 
 void line_trace_task(intptr_t unused)
 {
@@ -422,21 +422,22 @@ void line_trace_task(intptr_t unused)
     }
     else
     {
+        forward = 80; /* 前進命令 */
         float p,i,d;
         diff[0] = diff[1];
         diff[1] = color_sensor_reflect - ((LIGHT_WHITE + LIGHT_BLACK)/2);
-    	integral += (diff[1] - diff[0]) / 2.0 * DELTA_T;
-    	
+        integral += (diff[1] - diff[0]) / 2.0 * DELTA_T;
+        
         p = KP * diff[1];
-    	i = KI * integral;
+        i = KI * integral;
         d = KD * (diff[1]-diff[0]) / DELTA_T;
         
         turn = p + i + d;
         temp_turn = turn;
-    	temp_p = p;
-    	temp_d = d;
+        temp_p = p;
+        temp_d = d;
         
-    	if(100 < turn)
+        if(100 < turn)
         {
             turn = 100;
         }
@@ -444,15 +445,6 @@ void line_trace_task(intptr_t unused)
         {
             turn = -100;
         }
-    	
-    	if(100 > d)
-    	{
-    		forward = 80; /* 前進命令 */
-    	}
-    	else
-    	{
-    		forward = 40;
-    	}
     }
 
     /* 倒立振子制御API に渡すパラメータを取得する */
@@ -476,7 +468,6 @@ void line_trace_task(intptr_t unused)
         (float)volt,
         (signed char*)&pwm_L,
         (signed char*)&pwm_R);
-
 
     /* EV3ではモーター停止時のブレーキ設定が事前にできないため */
     /* 出力0時に、その都度設定する */
