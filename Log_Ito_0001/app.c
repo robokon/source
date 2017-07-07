@@ -49,20 +49,21 @@ static int LIGHT_BLACK=100;          /* 黒色の光センサ値 */
     uint8_t Reflect;
     int16_t Gyro_angle;
     int16_t Gyro_rate;  
-    int16_t Turn;
- 	int16_t P;
- 	int16_t D;
+     int16_t P;
+     int16_t D;
+    float Count;
 }Logger;
 
 /* Log回数の格納変数 */
 int LogNum = 0;
+int count  = 0;
 
 /* Log格納配列 */
 Logger gst_Log_str[LOG_MAX]; /* (1s == 250) */
 #endif
 
 #if (LOG_TASK == TASK_ON)
-void log_str(uint8_t reflect, int16_t rate, int16_t turn,int16_t p,int16_t d);
+void log_str(uint8_t reflect, int16_t rate, int16_t p, int16_t d, int16_t count);
 void log_commit(void);
 #endif
 
@@ -95,8 +96,8 @@ void main_task(intptr_t unused)
 
     ev3_led_set_color(LED_ORANGE); /* 初期化完了通知 */
 
-	Distance_init(); /* 距離計測変数初期化 */
-	
+    Distance_init(); /* 距離計測変数初期化 */
+    
     /*白色の光センサ値取得*/
     while(1)
     {
@@ -151,25 +152,25 @@ void main_task(intptr_t unused)
     ev3_led_set_color(LED_GREEN); /* スタート通知 */
 
     /*スタート処理*/
-	while(1)
-	{
-		float tail = 0;
-		tail = tail_control(TAIL_ANGLE_START);
-		if(tail==0)
-		{
-			break;
-		}
-	}
-	
+    while(1)
+    {
+        float tail = 0;
+        tail = tail_control(TAIL_ANGLE_START);
+        if(tail==0)
+        {
+            break;
+        }
+    }
+    
     /**
     * Main loop for the self-balance control algorithm
     */
-	// 周期ハンドラ開始
+    // 周期ハンドラ開始
     ev3_sta_cyc(TEST_EV3_CYC1);
     //ev3_sta_cyc(TEST_EV3_CYC2);
 
-	// バックボタンが押されるまで待つ
-	slp_tsk();
+    // バックボタンが押されるまで待つ
+    slp_tsk();
     // 周期ハンドラ停止
     ev3_stp_cyc(TEST_EV3_CYC1); 
     //ev3_stp_cyc(TEST_EV3_CYC2); 
@@ -177,7 +178,7 @@ void main_task(intptr_t unused)
     ev3_motor_stop(left_motor, false);
     ev3_motor_stop(right_motor, false);
 
-	log_commit();
+    log_commit();
     ter_tsk(BT_TASK);
     fclose(bt);
 
@@ -214,7 +215,7 @@ void test_ev3_cys2(intptr_t idx)
 //*****************************************************************************
 void log_create_task(intptr_t idx) 
 {
-	//log_str();
+    //log_str();
 }
 
 //*****************************************************************************
@@ -279,7 +280,7 @@ float tail_control(signed int angle)
     {
         ev3_motor_set_power(tail_motor, (signed char)pwm);
     }
-	return pwm;
+    return pwm;
 }
 
 //*****************************************************************************
@@ -315,19 +316,19 @@ void bt_task(intptr_t unused)
 // 概要 : グローバル配列 gst_Log_strに現在のセンサー値を格納
 //
 //*****************************************************************************
-void log_str(uint8_t reflect, int16_t rate, int16_t turn, int16_t p, int16_t d)
+void log_str(uint8_t reflect, int16_t rate, int16_t p, int16_t d, int16_t count)
 {
-	if(LogNum < LOG_MAX)
-	{
-	    gst_Log_str[LogNum].Reflect = reflect;
-	    //gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
-	    gst_Log_str[LogNum].Gyro_rate = rate;
-	    gst_Log_str[LogNum].Turn = turn;
-	    gst_Log_str[LogNum].P = p;
-		gst_Log_str[LogNum].D = d;
-		
-	    LogNum++;	
-	}
+    if(LogNum < LOG_MAX)
+    {
+        gst_Log_str[LogNum].Reflect = reflect;
+        //gst_Log_str[LogNum].Gyro_angle = ev3_gyro_sensor_get_angle(gyro_sensor);
+        gst_Log_str[LogNum].Gyro_rate = rate;
+        gst_Log_str[LogNum].P = p;
+        gst_Log_str[LogNum].D = d;
+        gst_Log_str[LogNum].Count = Distance_getDistance();
+        
+        LogNum++;    
+    }
 }
 
 //*****************************************************************************
@@ -340,20 +341,20 @@ void log_str(uint8_t reflect, int16_t rate, int16_t turn, int16_t p, int16_t d)
 void log_commit(void)
 {
     FILE *fp; /* ファイルポインタ */
-	int  i;   /* インクリメント */
+    int  i;   /* インクリメント */
 
     /* Logファイル作成 */
-	fp=fopen(LOG_FILE_NAME,"a");
-	/* 列タイトル挿入 */
-	fprintf(fp,"反射光センサー, ジャイロ角度, ジャイロセンサ角速度,ターン,P,D　\n");
-	
-	/* Logの出力 */
-	for(i = 0 ; i < LOG_MAX; i++)
-	{
-		fprintf(fp,"%d,%d,%d,%d,%d,%d\n",gst_Log_str[i].Reflect, gst_Log_str[i].Gyro_angle, gst_Log_str[i].Gyro_rate, gst_Log_str[i].Turn, gst_Log_str[i].P, gst_Log_str[i].D);
-	}
-	
-	fclose(fp);
+    fp=fopen(LOG_FILE_NAME,"a");
+    /* 列タイトル挿入 */
+    fprintf(fp,"反射光センサー, ジャイロセンサ角速度,P,D,走行距離　\n");
+    
+    /* Logの出力 */
+    for(i = 0 ; i < LOG_MAX; i++)
+    {
+        fprintf(fp,"%d,%d,%d,%d,%f\n",gst_Log_str[i].Reflect, gst_Log_str[i].Gyro_rate, gst_Log_str[i].P, gst_Log_str[i].D, gst_Log_str[i].Count);
+    }
+    
+    fclose(fp);
 }
 
 #endif
@@ -373,7 +374,7 @@ static float integral=0;
 
 void line_trace_task(intptr_t unused)
 {
-	signed char forward;      /* 前後進命令 */
+    signed char forward;      /* 前後進命令 */
     signed char turn;         /* 旋回命令 */
     signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
 
@@ -385,10 +386,8 @@ void line_trace_task(intptr_t unused)
 
     color_sensor_reflect= ev3_color_sensor_get_reflect(color_sensor);
 
-
-    int temp_turn=1000;
     int temp_p=1000;
-	int temp_d=1000;
+    int temp_d=1000;
 
     if (sonar_alert() == 1) /* 障害物検知 */
     {
@@ -400,14 +399,13 @@ void line_trace_task(intptr_t unused)
         float p,i,d;
         diff[0] = diff[1];
         diff[1] = color_sensor_reflect - ((LIGHT_WHITE + LIGHT_BLACK)/2);
-        integral += (diff[1] - diff[0]) / 2.0 * DELTA_T;
+        integral += (diff[1] + diff[0]) / 2.0 * DELTA_T;
         
         p = KP * diff[1];
         i = KI * integral;
         d = KD * (diff[1]-diff[0]) / DELTA_T;
         
         turn = p + i + d;
-        temp_turn = turn;
         temp_p = p;
         temp_d = d;
         
@@ -427,8 +425,11 @@ void line_trace_task(intptr_t unused)
     gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
     volt = ev3_battery_voltage_mV();
 
-    log_str(color_sensor_reflect,(int16_t)gyro,(int16_t)temp_turn, (int16_t)temp_p, (int16_t)temp_d);
-
+    count++;
+    if(count%25==0)
+    {
+        log_str(color_sensor_reflect,(int16_t)gyro, (int16_t)temp_p, (int16_t)temp_d, (int16_t)count);
+    }
 
     /* 倒立振子制御APIを呼び出し、倒立走行するための */
     /* 左右モータ出力値を得る */
