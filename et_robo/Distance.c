@@ -26,10 +26,27 @@ void Distance_update()
     float cur_angleL = ev3_motor_get_counts(left_motor); //左モータ回転角度の現在値
     float cur_angleR = ev3_motor_get_counts(right_motor);//右モータ回転角度の現在値
     float distance4ms = 0.0;        //4msの距離
-
-    // 4ms間の走行距離 = ((円周率 * タイヤの直径) / 360) * (モータ角度過去値　- モータ角度現在値)
-    distance4msL = ((PI * TIRE_DIAMETER) / 360.0) * (cur_angleL - pre_angleL);  // 4ms間の左モータ距離
-    distance4msR = ((PI * TIRE_DIAMETER) / 360.0) * (cur_angleR - pre_angleR);  // 4ms間の右モータ距離
+	
+    // 4ms間の走行距離 = ((円周率 * タイヤの直径) / 360) * (モータ角度現在値 - モータ角度過去値)
+	if( (cur_angleL - pre_angleL) < -10000 )
+	{
+		// モータ角度カンスト対応
+        distance4msL = ((PI * TIRE_DIAMETER) / 360.0) * (cur_angleL + 0x7FFF - pre_angleL);  // 4ms間の左モータ距離
+	}
+	else
+	{
+        distance4msL = ((PI * TIRE_DIAMETER) / 360.0) * (cur_angleL - pre_angleL);  // 4ms間の左モータ距離
+	}
+	
+	if( (cur_angleR - pre_angleR) < -10000 )
+	{
+		// モータ角度カンスト対応
+        distance4msR = ((PI * TIRE_DIAMETER) / 360.0) * (cur_angleR + 0x7FFF - pre_angleR);  // 4ms間の右モータ距離
+	}
+	else
+	{
+        distance4msR = ((PI * TIRE_DIAMETER) / 360.0) * (cur_angleR - pre_angleR);  // 4ms間の右モータ距離
+	}
     distance4ms = (distance4msL + distance4msR) / 2.0; //左右タイヤの走行距離を足して割る
     distance += distance4ms;
 
