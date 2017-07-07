@@ -34,6 +34,11 @@ static FILE     *bt = NULL;     /* Bluetoothファイルハンドル */
 static int LIGHT_WHITE=0;         /* 白色の光センサ値 */
 static int LIGHT_BLACK=100;          /* 黒色の光センサ値 */
 
+/* PIDパラメータ */
+#define KP 0.5
+#define KI 0.0
+#define KD 0.03
+
 #if (LOG_TASK == TASK_ON)
 /* Log の最大回数 */
 #define  LOG_MAX   1000
@@ -366,9 +371,6 @@ void log_commit(void)
 //
 //*****************************************************************************
 #define DELTA_T 0.004
-#define KP 0.5
-#define KI 0.0
-#define KD 0.03
 static int diff [2];
 static float integral=0;
 
