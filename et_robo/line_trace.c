@@ -13,18 +13,34 @@
 //       
 //*****************************************************************************
 
-signed char forward;      /* 前後進命令 */
-signed char turn;         /* 旋回命令 */
-signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
+#define DELTA_T 0.004
+signed char forward;              /* 前後進命令 */
+signed char turn;                 /* 旋回命令 */
+signed char pwm_L, pwm_R;         /* 左右モータPWM出力 */
+static float integral=0;          /* I制御 */
+static int diff [2];              /* カラーセンサの差分 */ 
+int count  = 0;                   /* ログ出力 */
+/* PIDパラメータ */
+#define KP 0.5
+#define KI 0.0
+#define KD 0.03
 
-void line_tarce_main()
+void line_tarce_main(int color_sensor)
 {
+    signed char forward;      /* 前後進命令 */
+    signed char turn;         /* 旋回命令 */
+    signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
+
     int32_t motor_ang_l, motor_ang_r;
     int gyro, volt;
-
-    if (ev3_button_is_pressed(BACK_BUTTON)) return;
-
+    uint8_t color_sensor_reflect;
+    
     tail_control(TAIL_ANGLE_DRIVE); /* バランス走行用角度に制御 */
+
+    color_sensor_reflect= ev3_color_sensor_get_reflect(color_sensor);
+
+    int temp_p=1000;
+    int temp_d=1000;
 
     if (sonar_alert() == 1) /* 障害物検知 */
     {
@@ -32,14 +48,29 @@ void line_tarce_main()
     }
     else
     {
-        forward = 30; /* 前進命令 */
-        if (ev3_color_sensor_get_reflect(color_sensor) >= (LIGHT_WHITE + LIGHT_BLACK)/2)
+    	/* PID制御 */
+        forward = 80; /* 前進命令 */
+        float p,i,d;
+        diff[0] = diff[1];
+        diff[1] = color_sensor_reflect - ((color_sensor)/2);
+        integral += (diff[1] + diff[0]) / 2.0 * DELTA_T;
+        
+        p = KP * diff[1];
+        i = KI * integral;
+        d = KD * (diff[1]-diff[0]) / DELTA_T;
+        
+        turn = p + i + d;
+        temp_p = p;
+        temp_d = d;
+        
+        /* モータ値調整 */
+        if(100 < turn)
         {
-            turn =  20; /* 左旋回命令 */
+            turn = 100;
         }
-        else
+        else if(turn < -100)
         {
-            turn = -20; /* 右旋回命令 */
+            turn = -100;
         }
     }
 
@@ -48,6 +79,13 @@ void line_tarce_main()
     motor_ang_r = ev3_motor_get_counts(right_motor);
     gyro = ev3_gyro_sensor_get_rate(gyro_sensor);
     volt = ev3_battery_voltage_mV();
+
+    /* ログ出力 */
+    count++;
+    if(count%25==0)
+    {
+        log_str(color_sensor_reflect,(int16_t)gyro, (int16_t)temp_p, (int16_t)temp_d, (int16_t)count);
+    }
 
     /* 倒立振子制御APIを呼び出し、倒立走行するための */
     /* 左右モータ出力値を得る */
@@ -80,6 +118,16 @@ void line_tarce_main()
     else
     {
         ev3_motor_set_power(right_motor, (int)pwm_R);
+    }
+    
+    /* 戻るボタンor転んだら終了 */
+    if(ev3_button_is_pressed(BACK_BUTTON))
+    {
+        wup_tsk(MAIN_TASK);
+    }
+    if(gyro < -150 || 150 < gyro)
+    {
+        wup_tsk(MAIN_TASK);
     }
 }
 

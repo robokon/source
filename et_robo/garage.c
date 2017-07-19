@@ -11,7 +11,7 @@ signed char pwm_L, pwm_R; /* 左右モータPWM出力 */
 // 概要 : 
 //       
 //*****************************************************************************
-void garage_main()
+void garage_main(int color_sensor)
 {
         int32_t motor_ang_l, motor_ang_r;
         int gyro, volt;
@@ -27,7 +27,7 @@ void garage_main()
         else
         {
             forward = 30; /* 前進命令 */
-            if (ev3_color_sensor_get_reflect(color_sensor) >= (LIGHT_WHITE + LIGHT_BLACK)/2)
+            if (ev3_color_sensor_get_reflect(color_sensor) >= (color_sensor)/2)
             {
                 turn =  20; /* 左旋回命令 */
             }

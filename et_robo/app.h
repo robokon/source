@@ -83,7 +83,8 @@ extern "C" {
 
 extern void main_task(intptr_t exinf);
 extern void bt_task(intptr_t exinf);
-
+extern void test_ev3_cys1(intptr_t exinf);
+    
 #endif /* TOPPERS_MACRO_ONLY */
 
 #ifdef __cplusplus
